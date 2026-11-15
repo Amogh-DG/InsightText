@@ -86,16 +86,42 @@ export const UploadData: React.FC = () => {
       await api.datasets.upload(formData)
       navigate('/datasets')
     } catch (err: any) {
+      const errorMsg = err?.message || `${file.name} could not be imported`
+      const details = Array.isArray(err?.details) && err.details.length > 0
+        ? err.details
+        : [{ row: 'General', problem: errorMsg }]
       setUploadError({
         message: `${file.name} could not be imported`,
-        details: [
-          { row: 'Row 214', problem: 'Text column is empty' },
-          { row: 'Row 1,092', problem: 'Date "31/02/2026" is not a valid date' },
-          { row: 'Row 3,310', problem: 'Unreadable characters in text column' }
-        ]
+        details
       })
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  const handleDownloadErrorReport = async () => {
+    if (!uploadError || !uploadError.details.length) return
+    try {
+      const blob = await api.datasets.downloadErrorReport(uploadError.details)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${file?.name || 'dataset'}_validation_errors.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      const csvContent = 'row,problem\n' + uploadError.details.map((d: any) => `"${d.row}","${d.problem}"`).join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${file?.name || 'dataset'}_validation_errors.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
     }
   }
 
@@ -144,7 +170,7 @@ export const UploadData: React.FC = () => {
             Try again
           </button>
           <button
-            onClick={() => alert('Downloaded error report log')}
+            onClick={handleDownloadErrorReport}
             className="px-5 py-2.5 bg-[#252a36] hover:bg-[#2e3444] text-slate-300 text-xs font-medium rounded-lg transition-colors"
           >
             Download error report

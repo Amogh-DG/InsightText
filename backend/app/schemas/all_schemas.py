@@ -136,6 +136,9 @@ class ModelVersionResponse(BaseModel):
     version: str
     metrics: Dict[str, Any]
     status: str
+    progress_stage: Optional[str] = "queued"
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
     created_by: Optional[str]
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -209,15 +212,19 @@ class FeedbackResponse(BaseModel):
 
 class DashboardSummary(BaseModel):
     documents_processed: int
+    documents_delta_pct: Optional[float] = None
     datasets_count: int
+    datasets_added_this_month: Optional[int] = 0
     deployed_model_f1: Optional[float]
     deployed_model_name: Optional[str]
     predictions_today: int
+    predictions_today_delta_pct: Optional[float] = None
     sentiment_distribution: Dict[str, float]
     label_distribution: Dict[str, float]
     topic_sizes: List[Dict[str, Any]]
     recent_low_confidence: List[Dict[str, Any]]
     trend_points: List[TrendPoint]
+    key_findings: List[str] = []
 
 class SettingUpdate(BaseModel):
     confidence_threshold: Optional[float] = None

@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -72,15 +72,17 @@ def get_text_embeddings(texts: List[str]) -> np.ndarray:
     cleaned_texts = [clean_text(t) if clean_text(t) else "empty" for t in texts]
     return embedder.encode(cleaned_texts, normalize_embeddings=True, show_progress_bar=False)
 
-def extract_topics(texts: List[str], num_topics: int = 6) -> List[Dict[str, Any]]:
-    valid_texts = [clean_text(t) for t in texts if clean_text(t)]
+def extract_topics_with_assignments(texts: List[str], num_topics: int = 6) -> Tuple[List[Dict[str, Any]], List[int]]:
+    valid_texts = [clean_text(t) if clean_text(t) else "empty feedback" for t in texts]
     if not valid_texts:
-        return []
+        return [], []
     
     n_samples = len(valid_texts)
     k = max(1, min(num_topics, n_samples))
     if k == 1 or n_samples < 3:
-        return [{"topic_id": 0, "keywords": ["general", "feedback", "service"], "size": n_samples}]
+        topics = [{"topic_id": 0, "keywords": ["general", "feedback", "service"], "size": n_samples}]
+        assignments = [0] * n_samples
+        return topics, assignments
     
     embeddings = embedder.encode(valid_texts, normalize_embeddings=True, show_progress_bar=False)
     kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
@@ -111,6 +113,10 @@ def extract_topics(texts: List[str], num_topics: int = 6) -> List[Dict[str, Any]
             "keywords": keywords,
             "size": cluster_size
         })
+    return topics, cluster_labels.tolist()
+
+def extract_topics(texts: List[str], num_topics: int = 6) -> List[Dict[str, Any]]:
+    topics, _ = extract_topics_with_assignments(texts, num_topics)
     return topics
 
 def analyze_single_text(text: str, threshold: float = settings.CONFIDENCE_THRESHOLD, intent_labels: Optional[List[str]] = None) -> Dict[str, Any]:

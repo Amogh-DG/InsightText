@@ -133,8 +133,10 @@ pytest -v tests
 
 ## Known Limitations
 
-- Transformer inference and embeddings run on CPU by default.
+- Transformer inference and embeddings run on CPU by default; GPU acceleration is recommended for high-volume production throughput.
+- SQLite is utilized as the default local data store; high-concurrency production deployments should transition to PostgreSQL.
 - Prototype upload limit is 20 MB and 50,000 rows per file.
+- Background training tasks run within FastAPI worker processes rather than a distributed Celery/Redis queue.
 - Caddy uses a local internal certificate for development HTTPS on port 443.
 
 ## License

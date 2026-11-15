@@ -4,7 +4,7 @@ import csv
 import io
 from datetime import datetime
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, UploadFile, File, Form, status, Response
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.config import settings
@@ -38,6 +38,25 @@ def parse_date(date_str: Any) -> Optional[datetime]:
 
 def read_file_records(file_bytes: bytes, filename: str) -> tuple[List[str], List[dict]]:
     ext = os.path.splitext(filename)[1].lower()
+    
+    if ext == ".xlsx":
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        sheet = wb.active
+        rows = list(sheet.iter_rows(values_only=True))
+        if not rows:
+            return [], []
+        columns = [str(c).strip() if c is not None else f"col_{i}" for i, c in enumerate(rows[0])]
+        records = []
+        for r in rows[1:]:
+            if all(v is None for v in r):
+                continue
+            row_dict = {}
+            for col_name, val in zip(columns, r):
+                row_dict[col_name] = str(val) if val is not None else ""
+            records.append(row_dict)
+        return columns, records
+    
     text_content = file_bytes.decode("utf-8", errors="replace")
     
     if ext == ".json":
@@ -62,7 +81,7 @@ def read_file_records(file_bytes: bytes, filename: str) -> tuple[List[str], List
         raise AppException(
             status.HTTP_400_BAD_REQUEST,
             "UNSUPPORTED_FILE_TYPE",
-            f"Unsupported file format '{ext}'. Accepted formats: CSV, JSON, TXT"
+            f"Unsupported file format '{ext}'. Accepted formats: CSV, XLSX, JSON, TXT"
         )
 
 @router.post("/preview", response_model=DatasetPreviewResponse)
@@ -125,11 +144,12 @@ async def upload_dataset(
             if dt is None:
                 errors.append({"row": f"Row {row_num}", "problem": f"Date '{row.get(time_column)}' is not a valid date"})
 
-    if len(errors) > 0 and len(errors) == len(records):
+    if len(errors) > 0:
         raise AppException(
             status.HTTP_400_BAD_REQUEST,
             "IMPORT_FAILED",
-            f"File import failed with {len(errors)} errors. Check column mappings."
+            f"File import failed with {len(errors)} validation errors. Check column mappings and data values.",
+            details=errors
         )
 
     dataset = Dataset(
@@ -172,6 +192,23 @@ async def upload_dataset(
     })
 
     return dataset
+
+@router.post("/error-report")
+def download_error_report(
+    errors: List[dict],
+    current_user: User = Depends(require_roles("analyst", "data_scientist"))
+):
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["row", "problem"])
+    writer.writeheader()
+    for err in errors:
+        writer.writerow({"row": err.get("row", ""), "problem": err.get("problem", "")})
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=upload_validation_errors.csv"}
+    )
 
 @router.get("", response_model=List[DatasetResponse])
 def list_datasets(

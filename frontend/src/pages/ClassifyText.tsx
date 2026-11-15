@@ -172,32 +172,8 @@ export const ClassifyText: React.FC = () => {
             })}
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-4 flex flex-col gap-3">
-              <span className="text-xs text-slate-300 font-medium truncate">Billed twice this month...</span>
-              <div className="flex items-center gap-4">
-                <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#1d2744] text-[#748ffc] border border-[#2b3a69]">
-                  Billing
-                </span>
-                <div className="flex-1 h-2 bg-[#252a36] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#4f6bf5] rounded-full" style={{ width: '91%' }} />
-                </div>
-                <span className="text-xs font-bold text-white font-mono">91%</span>
-              </div>
-            </div>
-
-            <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-4 flex flex-col gap-3">
-              <span className="text-xs text-slate-300 font-medium truncate">Support team has not answered...</span>
-              <div className="flex items-center gap-4">
-                <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#1d2744] text-[#748ffc] border border-[#2b3a69]">
-                  Support
-                </span>
-                <div className="flex-1 h-2 bg-[#252a36] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#4f6bf5] rounded-full" style={{ width: '74%' }} />
-                </div>
-                <span className="text-xs font-bold text-white font-mono">74%</span>
-              </div>
-            </div>
+          <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-8 text-center text-xs text-slate-400">
+            Submit text or select a dataset above to run predictions.
           </div>
         )}
       </div>

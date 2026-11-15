@@ -1,18 +1,23 @@
+from typing import Any
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 class AppException(Exception):
-    def __init__(self, status_code: int, code: str, message: str):
+    def __init__(self, status_code: int, code: str, message: str, details: Any = None):
         self.status_code = status_code
         self.code = code
         self.message = message
+        self.details = details
         super().__init__(message)
 
 async def app_exception_handler(request: Request, exc: AppException):
+    body = {"code": exc.code, "message": exc.message}
+    if exc.details is not None:
+        body["details"] = exc.details
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message}}
+        content={"error": body}
     )
 
 async def http_exception_handler(request: Request, exc: HTTPException):

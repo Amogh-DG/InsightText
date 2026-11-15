@@ -46,6 +46,38 @@ export const TrainModel: React.FC = () => {
 
   const activeTraining = models?.find((m: any) => m.status === 'training')
 
+  const getStageInfo = (m: any) => {
+    if (!m) return { label: 'Idle', badge: 'Ready', width: 'w-0', detail: 'No active training runs' }
+    const stage = m.progress_stage || 'queued'
+    const stageLabels: Record<string, string> = {
+      queued: 'Queued',
+      preprocessing_data: 'Preprocessing text',
+      extracting_features: 'Extracting features',
+      fitting_classifier: 'Fitting classifier',
+      evaluating: 'Evaluating test split',
+      completed: 'Completed',
+      failed: 'Failed'
+    }
+    const stageWidths: Record<string, string> = {
+      queued: 'w-1/6',
+      preprocessing_data: 'w-2/6',
+      extracting_features: 'w-3/6',
+      fitting_classifier: 'w-4/6',
+      evaluating: 'w-5/6',
+      completed: 'w-full',
+      failed: 'w-full'
+    }
+    const started = m.started_at ? new Date(m.started_at).toLocaleTimeString() : 'Just now'
+    return {
+      label: stageLabels[stage] || stage,
+      badge: stage === 'failed' ? 'Failed' : 'Running',
+      width: stageWidths[stage] || 'w-1/2',
+      detail: `Started at ${started} · Algorithm: ${m.algorithm}`
+    }
+  }
+
+  const stageInfo = getStageInfo(activeTraining)
+
   const getStatusBadge = (status: string, f1?: number) => {
     if (status === 'training') {
       return <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-[#332712] text-[#fbbf24]">Training</span>
@@ -152,27 +184,31 @@ export const TrainModel: React.FC = () => {
         <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-6 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold text-white">Training progress</h3>
-            <span className="text-xs text-slate-400 font-mono">
-              {activeTraining ? 'Epoch 6 of 10' : 'Idle'}
+            <span className="text-xs text-slate-300 font-mono">
+              {stageInfo.label}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-0.5 rounded text-[11px] font-medium bg-[#332712] text-[#fbbf24]">
-              {activeTraining ? 'Training' : 'Ready'}
+            <span className={`px-2.5 py-0.5 rounded text-[11px] font-medium ${
+              activeTraining
+                ? 'bg-[#332712] text-[#fbbf24]'
+                : 'bg-[#132c22] text-[#34d399]'
+            }`}>
+              {stageInfo.badge}
             </span>
           </div>
 
           <div className="w-full h-2 bg-[#252a36] rounded-full overflow-hidden mt-1">
             <div
               className={`h-full bg-[#4f6bf5] rounded-full transition-all duration-500 ${
-                activeTraining ? 'w-3/5 animate-pulse' : 'w-full'
+                activeTraining ? `${stageInfo.width} animate-pulse` : 'w-full'
               }`}
             />
           </div>
 
           <span className="text-[11px] text-slate-500">
-            {activeTraining ? 'Estimated 3 min remaining' : 'No active training runs'}
+            {stageInfo.detail}
           </span>
         </div>
 

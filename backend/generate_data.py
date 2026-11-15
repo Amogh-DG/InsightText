@@ -16,7 +16,10 @@ TEMPLATES = {
         "Overcharged for data add-on package this month",
         "Billing address cannot be verified on the payment portal",
         "Double deduction happened during subscription upgrade",
-        "Charged after canceling trial period yesterday"
+        "Charged after canceling trial period yesterday",
+        "Support agent told me billing was wrong and refund pending",
+        "App payment screen threw error during checkout charge",
+        "Charged for courier delivery fee that was supposed to be free"
     ],
     "Delivery": [
         "Package arrived two days late and missing items",
@@ -30,7 +33,10 @@ TEMPLATES = {
         "Package arrived soaking wet in the rain without plastic wrap",
         "Delivery driver was extremely polite and arrived early",
         "Wrong product was delivered inside the sealed package",
-        "Shipment delayed due to transit hub sorting backlog"
+        "Shipment delayed due to transit hub sorting backlog",
+        "Delivery driver said system crashed when confirming package code",
+        "Called support about missing delivery but got no refund update",
+        "Received damaged parcel after courier app showed delivered"
     ],
     "Product quality": [
         "App crashes whenever I export large analytical reports",
@@ -44,7 +50,10 @@ TEMPLATES = {
         "Build quality exceeded my expectations for this price",
         "Device overheats significantly after fifteen minutes of usage",
         "Dark mode layout looks sleek and easy on the eyes",
-        "Audio crackles intermittently on left headphone speaker"
+        "Audio crackles intermittently on left headphone speaker",
+        "App froze right when I tried paying for monthly subscription",
+        "Support ticket was filed because product screen broke on delivery",
+        "Software bug prevents invoice download and crashes browser"
     ],
     "Support": [
         "Support never replied to my urgent priority ticket",
@@ -58,7 +67,10 @@ TEMPLATES = {
         "Support ticket was closed without fixing the reported bug",
         "Knowledge base documentation is outdated and missing screenshots",
         "Very swift email support response on Sunday morning",
-        "Support agent showed great patience with troubleshooting steps"
+        "Support agent showed great patience with troubleshooting steps",
+        "Contacted support regarding extra charge on delivery bill",
+        "Support rep apologized for app bug but could not issue refund",
+        "Help desk assistance was quick but courier tracking remains broken"
     ]
 }
 
@@ -72,7 +84,9 @@ MODIFIERS = [
     " Thank you for your continued assistance.",
     " Hoping for a fast turnaround.",
     " This is the third time this happened.",
-    " Appreciate the team effort on this."
+    " Appreciate the team effort on this.",
+    " Also billing support said to wait.",
+    " Still waiting for support after courier delay."
 ]
 
 def generate_sample_dataset(output_path: str = "storage/datasets/support_tickets_q3.csv", count: int = 500):
@@ -87,7 +101,13 @@ def generate_sample_dataset(output_path: str = "storage/datasets/support_tickets
         cat = categories[i % len(categories)]
         template = random.choice(TEMPLATES[cat])
         modifier = random.choice(MODIFIERS)
-        text = f"{template}{modifier}".strip()
+        
+        if random.random() < 0.12:
+            cross_cat = random.choice([c for c in categories if c != cat])
+            cross_snippet = random.choice(TEMPLATES[cross_cat]).lower()
+            text = f"{template}, but {cross_snippet}.{modifier}".strip()
+        else:
+            text = f"{template}{modifier}".strip()
         
         days_offset = random.randint(0, 50)
         hours_offset = random.randint(0, 23)
@@ -100,13 +120,11 @@ def generate_sample_dataset(output_path: str = "storage/datasets/support_tickets
             "created_at": created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
         
-    records.sort(key=lambda x: x["created_at"])
-    
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["feedback_text", "category", "created_at"])
         writer.writeheader()
         writer.writerows(records)
-        
+
     return output_path
 
 if __name__ == "__main__":

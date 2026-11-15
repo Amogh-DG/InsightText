@@ -58,6 +58,7 @@ class Document(Base):
     text_encrypted = Column(Text, nullable=False)
     label = Column(String(255), nullable=True)
     timestamp = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     meta = Column(JSON, default=dict, nullable=False)
     processed = Column(Boolean, default=False, nullable=False)
 
@@ -105,6 +106,9 @@ class ModelVersion(Base):
     artifact_path = Column(String(500), nullable=False)
     metrics = Column(JSON, default=dict, nullable=False)
     status = Column(String(50), default="trained", nullable=False)
+    progress_stage = Column(String(100), default="queued", nullable=False)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
     created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

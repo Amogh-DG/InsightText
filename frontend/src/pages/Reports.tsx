@@ -12,7 +12,7 @@ import { api } from '../api/client'
 
 export const Reports: React.FC = () => {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('')
-  const [dateRange, setDateRange] = useState('Oct 1 - Nov 14, 2026')
+  const [dateRange, setDateRange] = useState<string>('all')
 
   const { data: datasets } = useQuery({
     queryKey: ['datasets'],
@@ -25,9 +25,28 @@ export const Reports: React.FC = () => {
     }
   })
 
+  const getDateBounds = (range: string) => {
+    const now = new Date()
+    if (range === '7d') {
+      const st = new Date(now.getTime() - 7 * 86400000)
+      return { startDate: st.toISOString(), endDate: now.toISOString() }
+    }
+    if (range === '30d') {
+      const st = new Date(now.getTime() - 30 * 86400000)
+      return { startDate: st.toISOString(), endDate: now.toISOString() }
+    }
+    if (range === '90d') {
+      const st = new Date(now.getTime() - 90 * 86400000)
+      return { startDate: st.toISOString(), endDate: now.toISOString() }
+    }
+    return { startDate: undefined, endDate: undefined }
+  }
+
+  const { startDate, endDate } = getDateBounds(dateRange)
+
   const { data: summary } = useQuery({
-    queryKey: ['dashboardSummary'],
-    queryFn: () => api.reports.summary()
+    queryKey: ['reportsSummary', selectedDatasetId, dateRange],
+    queryFn: () => api.reports.summary(selectedDatasetId || undefined, startDate, endDate)
   })
 
   const { data: trendData } = useQuery({
@@ -41,32 +60,17 @@ export const Reports: React.FC = () => {
   })
 
   const handleExportCsv = () => {
-    const url = api.reports.exportUrl('csv', selectedDatasetId || undefined)
+    const url = api.reports.exportUrl('csv', selectedDatasetId || undefined, startDate, endDate)
     window.open(url, '_blank')
   }
 
   const handleExportHtml = () => {
-    const url = api.reports.exportUrl('html', selectedDatasetId || undefined)
+    const url = api.reports.exportUrl('html', selectedDatasetId || undefined, startDate, endDate)
     window.open(url, '_blank')
   }
 
-  const topicEntries = summary?.topic_sizes?.length
-    ? summary.topic_sizes
-    : [
-        { name: 'App crashes', percentage: 34 },
-        { name: 'Refund delays', percentage: 26 },
-        { name: 'Pricing', percentage: 18 },
-        { name: 'Onboarding', percentage: 12 }
-      ]
-
-  const categoryEntries = Object.entries(
-    summary?.label_distribution || {
-      Billing: 38,
-      Delivery: 30,
-      'Product quality': 22,
-      Support: 10
-    }
-  )
+  const topicEntries = summary?.topic_sizes || []
+  const categoryEntries = Object.entries(summary?.label_distribution || {})
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,9 +91,10 @@ export const Reports: React.FC = () => {
             onChange={(e) => setDateRange(e.target.value)}
             className="px-3.5 py-2 text-xs bg-[#191c25] border border-[#252a36] rounded-lg text-slate-300 focus:outline-none focus:border-[#4f6bf5]"
           >
-            <option value="Oct 1 - Nov 14, 2026">Oct 1 – Nov 14, 2026</option>
-            <option value="Last 30 days">Last 30 days</option>
-            <option value="All time">All time</option>
+            <option value="all">All time</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
           </select>
         </div>
 
@@ -145,60 +150,69 @@ export const Reports: React.FC = () => {
 
         <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-6">
           <h3 className="text-xs font-semibold text-white mb-6">Top topics</h3>
-          <div className="flex flex-col gap-4">
-            {topicEntries.slice(0, 4).map((topic: any) => (
-              <div key={topic.name} className="flex flex-col gap-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-300 font-medium">{topic.name}</span>
-                  <span className="text-slate-400">{topic.percentage}%</span>
+          {topicEntries.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {topicEntries.slice(0, 4).map((topic: any) => (
+                <div key={topic.name} className="flex flex-col gap-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-medium">{topic.name}</span>
+                    <span className="text-slate-400">{topic.percentage}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#252a36] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#4f6bf5] rounded-full"
+                      style={{ width: `${topic.percentage}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-1.5 bg-[#252a36] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#4f6bf5] rounded-full"
-                    style={{ width: `${topic.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-44 flex items-center justify-center text-xs text-slate-500">
+              No topic clusters available
+            </div>
+          )}
         </div>
 
         <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-6">
           <h3 className="text-xs font-semibold text-white mb-6">Category breakdown</h3>
-          <div className="flex flex-col gap-4">
-            {categoryEntries.map(([label, val]: any) => (
-              <div key={label} className="flex flex-col gap-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-300 font-medium">{label}</span>
-                  <span className="text-slate-400">{val}%</span>
+          {categoryEntries.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {categoryEntries.map(([label, val]: any) => (
+                <div key={label} className="flex flex-col gap-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-medium">{label}</span>
+                    <span className="text-slate-400">{val}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#252a36] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#4f6bf5] rounded-full"
+                      style={{ width: `${val}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-1.5 bg-[#252a36] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#4f6bf5] rounded-full"
-                    style={{ width: `${val}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-44 flex items-center justify-center text-xs text-slate-500">
+              No category breakdown recorded
+            </div>
+          )}
         </div>
 
         <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-6 flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-semibold text-white mb-4">Key findings</h3>
             <ul className="flex flex-col gap-3 text-xs text-slate-300">
-              <li className="flex items-start gap-2">
-                <span className="text-[#4f6bf5] text-base leading-none">•</span>
-                <span>Negative sentiment rose 6% after the Oct 18 release.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#4f6bf5] text-base leading-none">•</span>
-                <span>Refund delays are the fastest-growing topic.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#4f6bf5] text-base leading-none">•</span>
-                <span>Model F1 stayed above the 0.85 target.</span>
-              </li>
+              {(summary?.key_findings || []).map((finding: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <span className="text-[#4f6bf5] text-base leading-none">•</span>
+                  <span>{finding}</span>
+                </li>
+              ))}
+              {(!summary?.key_findings || summary.key_findings.length === 0) && (
+                <li className="text-slate-500">No key findings generated for this scope.</li>
+              )}
             </ul>
           </div>
         </div>

@@ -244,11 +244,11 @@ export const SemanticAnalysis: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-[#14171f] rounded-lg border border-[#252a36]">
                   <h5 className="text-xs font-medium text-slate-300 mb-2">Dominant Sentiment</h5>
-                  <div className="text-lg font-bold text-white">Positive</div>
+                  <div className="text-lg font-bold text-white capitalize">{summary?.dominant_sentiment || '—'}</div>
                 </div>
                 <div className="p-4 bg-[#14171f] rounded-lg border border-[#252a36]">
                   <h5 className="text-xs font-medium text-slate-300 mb-2">Most Frequent Intent</h5>
-                  <div className="text-lg font-bold text-white">Complaint</div>
+                  <div className="text-lg font-bold text-white capitalize">{summary?.most_frequent_intent || '—'}</div>
                 </div>
               </div>
             </div>
@@ -276,9 +276,9 @@ export const SemanticAnalysis: React.FC = () => {
             <h3 className="text-xs font-semibold text-white mb-4">Sentiment summary</h3>
             <div className="flex flex-col gap-3.5">
               {[
-                { label: 'Positive', val: summary?.sentiment_summary?.Positive ?? 46 },
-                { label: 'Neutral', val: summary?.sentiment_summary?.Neutral ?? 31 },
-                { label: 'Negative', val: summary?.sentiment_summary?.Negative ?? 23 }
+                { label: 'Positive', val: summary?.sentiment_summary?.Positive ?? 0 },
+                { label: 'Neutral', val: summary?.sentiment_summary?.Neutral ?? 0 },
+                { label: 'Negative', val: summary?.sentiment_summary?.Negative ?? 0 }
               ].map((s) => (
                 <div key={s.label} className="flex flex-col gap-1.5">
                   <div className="flex justify-between text-xs">
@@ -299,24 +299,26 @@ export const SemanticAnalysis: React.FC = () => {
           <div className="bg-[#191c25] border border-[#252a36] rounded-xl p-6">
             <h3 className="text-xs font-semibold text-white mb-4">Top intents</h3>
             <div className="flex flex-col gap-3.5">
-              {Object.entries(
-                summary?.top_intents && Object.keys(summary.top_intents).length > 0
-                  ? summary.top_intents
-                  : { Complaint: 41, Praise: 28, 'Feature request': 19 }
-              ).map(([intent, val]: any) => (
-                <div key={intent} className="flex flex-col gap-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-300">{intent}</span>
-                    <span className="text-slate-400">{val}%</span>
+              {summary?.top_intents && Object.keys(summary.top_intents).length > 0 ? (
+                Object.entries(summary.top_intents).map(([intent, val]: any) => (
+                  <div key={intent} className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-300 capitalize">{intent}</span>
+                      <span className="text-slate-400">{val}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-[#252a36] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#4f6bf5] rounded-full"
+                        style={{ width: `${val}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full h-1.5 bg-[#252a36] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#4f6bf5] rounded-full"
-                      style={{ width: `${val}%` }}
-                    />
-                  </div>
+                ))
+              ) : (
+                <div className="py-4 text-center text-xs text-slate-500">
+                  No intent distribution recorded
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>

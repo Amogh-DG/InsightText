@@ -38,7 +38,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     if (data && typeof data === 'object' && data.error) {
-      throw new Error(data.error.message || 'Request failed')
+      const err: any = new Error(data.error.message || 'Request failed')
+      err.code = data.error.code
+      err.details = data.error.details
+      throw err
     }
     throw new Error(typeof data === 'string' ? data : 'Request failed')
   }
@@ -93,6 +96,19 @@ export const api = {
         method: 'POST',
         body: formData
       }),
+    downloadErrorReport: async (errors: { row: string; problem: string }[]) => {
+      const token = localStorage.getItem('insighttext_token')
+      const res = await fetch(`${API_BASE}/datasets/error-report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(errors)
+      })
+      if (!res.ok) throw new Error('Failed to download error report')
+      return res.blob()
+    },
     delete: (id: string) =>
       request<void>(`/datasets/${id}`, {
         method: 'DELETE'
@@ -174,12 +190,30 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body)
       }),
+    retrain: (body?: { algorithm?: string; feature_type?: string }) =>
+      request<any>('/feedback/retrain', {
+        method: 'POST',
+        body: JSON.stringify(body || {})
+      }),
     list: () => request<any[]>('/feedback')
   },
   reports: {
-    summary: () => request<any>('/reports/summary'),
-    exportUrl: (format: 'csv' | 'html', datasetId?: string) =>
-      `${API_BASE}/reports/export?format=${format}${datasetId ? `&dataset_id=${datasetId}` : ''}`
+    summary: (datasetId?: string, startDate?: string, endDate?: string) => {
+      const params = new URLSearchParams()
+      if (datasetId) params.append('dataset_id', datasetId)
+      if (startDate) params.append('start_date', startDate)
+      if (endDate) params.append('end_date', endDate)
+      const q = params.toString()
+      return request<any>(`/reports/summary${q ? `?${q}` : ''}`)
+    },
+    exportUrl: (format: 'csv' | 'html', datasetId?: string, startDate?: string, endDate?: string) => {
+      const params = new URLSearchParams()
+      params.append('format', format)
+      if (datasetId) params.append('dataset_id', datasetId)
+      if (startDate) params.append('start_date', startDate)
+      if (endDate) params.append('end_date', endDate)
+      return `${API_BASE}/reports/export?${params.toString()}`
+    }
   },
   settings: {
     get: () => request<any>('/settings'),

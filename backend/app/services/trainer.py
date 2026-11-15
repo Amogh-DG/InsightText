@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 import joblib
 import numpy as np
@@ -31,6 +32,8 @@ def train_model_sync(
 
     try:
         mv.status = "training"
+        mv.started_at = datetime.utcnow()
+        mv.progress_stage = "preprocessing_data"
         db.commit()
 
         cleaned_texts = [clean_text(t) if clean_text(t) else "sample" for t in texts]
@@ -62,6 +65,9 @@ def train_model_sync(
         y_train = train_label_encoder.fit_transform(y_train_labels)
         model_classes = train_label_encoder.classes_.tolist()
 
+        mv.progress_stage = "extracting_features"
+        db.commit()
+
         vectorizer = None
         if "BERT" in feature_type.upper():
             X_train = get_text_embeddings(X_train_raw)
@@ -70,6 +76,9 @@ def train_model_sync(
             vectorizer = TfidfVectorizer(max_features=5000, stop_words="english", ngram_range=(1, 2))
             X_train = vectorizer.fit_transform(X_train_raw)
             X_test = vectorizer.transform(X_test_raw)
+
+        mv.progress_stage = "fitting_classifier"
+        db.commit()
 
         norm_alg = algorithm.lower().replace(" ", "").replace("_", "")
         if "xgboost" in norm_alg or "xgb" in norm_alg:
@@ -86,6 +95,9 @@ def train_model_sync(
             clf = LogisticRegression(max_iter=1000, random_state=42)
 
         clf.fit(X_train, y_train)
+
+        mv.progress_stage = "evaluating"
+        db.commit()
 
         y_pred_idx = clf.predict(X_test)
         y_pred_labels = [model_classes[idx] for idx in y_pred_idx]
@@ -107,10 +119,14 @@ def train_model_sync(
         mv.artifact_path = artifact_path
         mv.metrics = metrics
         mv.status = "trained"
+        mv.progress_stage = "completed"
+        mv.completed_at = datetime.utcnow()
         db.commit()
 
     except Exception as e:
         mv.status = "failed"
+        mv.progress_stage = "failed"
+        mv.completed_at = datetime.utcnow()
         mv.metrics = {"error": str(e)}
         db.commit()
     finally:

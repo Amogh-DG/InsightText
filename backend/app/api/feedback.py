@@ -1,13 +1,15 @@
+import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.core.deps import get_current_user, record_audit_log
 from app.core.rbac import require_roles
 from app.core.errors import AppException
-from app.models.all_models import User, Prediction, Feedback, Document
+from app.models.all_models import User, Prediction, Feedback, Document, Dataset, ModelVersion
 from app.schemas.all_schemas import FeedbackCreate, FeedbackResponse
 from app.services.crypto import crypto_service
+from app.services.trainer import train_model_sync
 from app.config import settings
 
 router = APIRouter(tags=["feedback"])
@@ -62,6 +64,35 @@ def submit_feedback(
         doc = db.query(Document).filter(Document.id == pred.document_id).first()
         if doc:
             doc.label = payload.corrected_label
+    else:
+        dataset = db.query(Dataset).filter(Dataset.name == "Accumulated Feedback").first()
+        if not dataset:
+            dataset = Dataset(
+                name="Accumulated Feedback",
+                owner_id=current_user.id,
+                source="feedback",
+                row_count=0,
+                text_column="text",
+                label_column="label",
+                status="ready"
+            )
+            db.add(dataset)
+            db.commit()
+            db.refresh(dataset)
+
+        new_doc = Document(
+            dataset_id=dataset.id,
+            text_encrypted=pred.input_text_encrypted,
+            label=payload.corrected_label,
+            meta={},
+            processed=True
+        )
+        db.add(new_doc)
+        db.commit()
+        db.refresh(new_doc)
+        
+        pred.document_id = new_doc.id
+        dataset.row_count = db.query(Document).filter(Document.dataset_id == dataset.id).count()
 
     db.commit()
     db.refresh(fb)
@@ -81,3 +112,67 @@ def list_feedbacks(
     current_user: User = Depends(get_current_user)
 ):
     return db.query(Feedback).order_by(Feedback.created_at.desc()).offset(skip).limit(limit).all()
+
+@router.post("/feedback/retrain", status_code=status.HTTP_202_ACCEPTED)
+def retrain_from_feedback(
+    background_tasks: BackgroundTasks,
+    algorithm: str = "XGBoost",
+    feature_type: str = "TF-IDF",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("data_scientist", "admin"))
+):
+    dataset = db.query(Dataset).filter(Dataset.name == "Accumulated Feedback").first()
+    if not dataset or db.query(Document).filter(Document.dataset_id == dataset.id, Document.label.isnot(None)).count() < 5:
+        dataset = db.query(Dataset).filter(Dataset.label_column.isnot(None)).first()
+        
+    if not dataset:
+        raise AppException(status.HTTP_400_BAD_REQUEST, "NO_DATASET", "No labeled dataset available for retraining")
+        
+    docs = db.query(Document).filter(Document.dataset_id == dataset.id, Document.label.isnot(None)).all()
+    if len(docs) < 5:
+        raise AppException(status.HTTP_400_BAD_REQUEST, "INSUFFICIENT_DATA", "Need at least 5 labeled examples to retrain")
+        
+    texts = [crypto_service.decrypt(d.text_encrypted) for d in docs]
+    labels = [d.label for d in docs]
+    
+    existing_count = db.query(ModelVersion).count()
+    ver_str = f"v{existing_count + 1}.0-feedback"
+    
+    mv = ModelVersion(
+        id=str(uuid.uuid4()),
+        name=f"Retrained-{dataset.name[:15]}",
+        algorithm=algorithm,
+        feature_type=feature_type,
+        dataset_id=dataset.id,
+        version=ver_str,
+        status="training",
+        progress_stage="queued",
+        artifact_path="",
+        metrics={},
+        created_by=current_user.id
+    )
+    db.add(mv)
+    db.commit()
+    db.refresh(mv)
+    
+    background_tasks.add_task(
+        train_model_sync,
+        model_version_id=mv.id,
+        texts=texts,
+        labels=labels,
+        algorithm=algorithm,
+        feature_type=feature_type,
+        test_split=0.2
+    )
+    
+    record_audit_log(db, current_user.id, "RETRAIN_MODEL", {
+        "model_version_id": mv.id,
+        "dataset_id": dataset.id
+    })
+    
+    return {
+        "model_id": mv.id,
+        "version": mv.version,
+        "status": "training",
+        "message": f"Retraining started with {len(texts)} feedback examples"
+    }

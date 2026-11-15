@@ -11,12 +11,11 @@ from app.schemas.all_schemas import (
     AnalysisRunRequest,
     SemanticTextRequest,
     SemanticTextResponse,
-    AnalysisItemResponse,
     TopicResponse
 )
 from app.services.semantic import (
     analyze_single_text,
-    extract_topics,
+    extract_topics_with_assignments,
     analyze_sentiment,
     extract_entities,
     classify_intent
@@ -41,11 +40,12 @@ def run_dataset_analysis_task(dataset_id: str, analysis_types: List[str], num_to
             decrypted_texts.append(crypto_service.decrypt(doc.text_encrypted))
 
         topic_mapping = {}
+        cluster_assignments = []
         if "topics" in analysis_types and decrypted_texts:
             db.query(Topic).filter(Topic.dataset_id == dataset_id).delete()
             db.commit()
 
-            raw_topics = extract_topics(decrypted_texts, num_topics=num_topics)
+            raw_topics, cluster_assignments = extract_topics_with_assignments(decrypted_texts, num_topics=num_topics)
             for rt in raw_topics:
                 top_obj = Topic(
                     dataset_id=dataset_id,
@@ -70,8 +70,8 @@ def run_dataset_analysis_task(dataset_id: str, analysis_types: List[str], num_to
             low_conf = (sentiment["score"] < threshold) or (intent_res["score"] < threshold)
 
             assigned_topic_id = None
-            if topic_mapping:
-                assigned_topic_id = list(topic_mapping.values())[i % len(topic_mapping)]
+            if topic_mapping and i < len(cluster_assignments):
+                assigned_topic_id = topic_mapping.get(cluster_assignments[i])
 
             analysis_obj = Analysis(
                 document_id=doc.id,
@@ -190,6 +190,8 @@ def get_analysis_summary(
         return {
             "sentiment_summary": {"Positive": 0.0, "Neutral": 0.0, "Negative": 0.0},
             "top_intents": {},
+            "dominant_sentiment": "None",
+            "most_frequent_intent": "None",
             "total_analyzed": 0
         }
 
@@ -216,9 +218,14 @@ def get_analysis_summary(
         for k, v in sorted(intent_counts.items(), key=lambda item: item[1], reverse=True)[:5]
     }
 
+    dominant_sentiment = max(sent_counts.items(), key=lambda item: item[1])[0] if sent_counts else "Neutral"
+    most_frequent_intent = max(intent_counts.items(), key=lambda item: item[1])[0] if intent_counts else "Other"
+
     return {
         "sentiment_summary": sent_summary,
         "top_intents": top_intents,
+        "dominant_sentiment": dominant_sentiment,
+        "most_frequent_intent": most_frequent_intent,
         "total_analyzed": total
     }
 

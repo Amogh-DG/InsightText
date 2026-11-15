@@ -52,6 +52,20 @@ def test_semantic_analysis_endpoint(client, analyst_headers):
     assert "intent" in data
     assert "low_confidence" in data
 
+def test_similar_documents_assigned_same_topic():
+    from app.services.semantic import extract_topics_with_assignments
+    texts = [
+        "Refund not received on credit card payment billing invoice",
+        "Charge was duplicated on invoice statement credit card refund",
+        "Software freezes when clicking export button app crash bug",
+        "App crashes upon login screen and application freezes bug"
+    ]
+    topics, assignments = extract_topics_with_assignments(texts, num_topics=2)
+    assert len(topics) == 2
+    assert assignments[0] == assignments[1]
+    assert assignments[2] == assignments[3]
+    assert assignments[0] != assignments[2]
+
 def test_get_dataset_analysis_summary(client, analyst_headers, db_session):
     ds = db_session.query(Dataset).first()
     if ds:
@@ -60,3 +74,6 @@ def test_get_dataset_analysis_summary(client, analyst_headers, db_session):
         data = res.json()
         assert "sentiment_summary" in data
         assert "top_intents" in data
+        assert "dominant_sentiment" in data
+        assert "most_frequent_intent" in data
+        assert "total_analyzed" in data
