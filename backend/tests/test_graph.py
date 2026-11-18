@@ -59,7 +59,8 @@ def test_lineage_graph_admin(client, admin_headers):
     for edge in data["edges"]:
         assert edge["source"] in node_ids
         assert edge["target"] in node_ids
-        assert edge["label"].endswith("→")
+        assert "→" not in edge["label"]
+        assert "←" not in edge["label"]
     edge_types = {e["type"] for e in data["edges"]}
     assert "trained" in edge_types
     assert "corrected" in edge_types

@@ -281,7 +281,7 @@ export const InsightGraph: React.FC = () => {
     })
   }
 
-  const truncateLabel = (str: string, maxLen: number = 14) => {
+  const truncateLabel = (str: string, maxLen: number = 34) => {
     if (!str) return ''
     return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str
   }
@@ -291,6 +291,12 @@ export const InsightGraph: React.FC = () => {
     return Math.max(4, Math.min(13, 3.5 + Math.sqrt(docCount) * 0.75))
   }
 
+  const getCardWidth = (node: any) => {
+    const lines = String(node.label || '').split('\n')
+    const longest = Math.max(...lines.map((l) => Math.min(l.length, 34)))
+    return Math.max(node.type === 'feedback' ? 62 : 68, longest * 5 + 16)
+  }
+
   const getNodeCollisionRadius = (node: any, tab: 'semantic' | 'lineage') => {
     if (tab === 'semantic') {
       return getSemanticNodeRadius(node) + 8
@@ -298,7 +304,7 @@ export const InsightGraph: React.FC = () => {
     if (node.type === 'user') return 8.5 + 8
     if (node.type === 'model') return 13 + 8
     if (node.type === 'dataset' || node.type === 'prediction' || node.type === 'feedback') {
-      return 36 + 8
+      return Math.max(36, getCardWidth(node) / 2) + 8
     }
     return 12 + 8
   }
@@ -347,7 +353,7 @@ export const InsightGraph: React.FC = () => {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
         ctx.fillStyle = isSelected || isHovered ? '#ffffff' : '#94a3b8'
-        const displayLabel = truncateLabel(node.label, 14)
+        const displayLabel = truncateLabel(node.label, 34)
         ctx.fillText(displayLabel, node.x, node.y + radius + 3)
       }
 
@@ -378,9 +384,9 @@ export const InsightGraph: React.FC = () => {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
         ctx.fillStyle = isSelected || isHovered ? '#ffffff' : '#cbd5e1'
-        ctx.fillText(truncateLabel(node.label, 12), node.x, node.y + radius + 3)
+        ctx.fillText(truncateLabel(node.label, 34), node.x, node.y + radius + 3)
       } else if (node.type === 'dataset') {
-        const width = 68
+        const width = getCardWidth(node)
         const height = 22
         const x = node.x - width / 2
         const y = node.y - height / 2
@@ -397,7 +403,7 @@ export const InsightGraph: React.FC = () => {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(truncateLabel(node.label, 10), node.x, y + 8)
+        ctx.fillText(truncateLabel(node.label, 34), node.x, y + 8)
 
         ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
         ctx.fillStyle = '#6ee7b7'
@@ -443,12 +449,12 @@ export const InsightGraph: React.FC = () => {
         ctx.textBaseline = 'top'
         ctx.fillStyle = node.deployed ? '#818cf8' : '#94a3b8'
         ctx.fillText(
-          truncateLabel(`${node.name || 'Model'}${node.deployed ? ' · Deployed' : ''}`, 14),
+          truncateLabel(`${node.name || 'Model'}${node.deployed ? ' · Deployed' : ''}`, 34),
           node.x,
           node.y + radius + 3
         )
       } else if (node.type === 'prediction') {
-        const width = 68
+        const width = getCardWidth(node)
         const height = 22
         const x = node.x - width / 2
         const y = node.y - height / 2
@@ -466,15 +472,15 @@ export const InsightGraph: React.FC = () => {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(truncateLabel(lines[0] || '', 10), node.x, y + 8)
+        ctx.fillText(truncateLabel(lines[0] || '', 34), node.x, y + 8)
 
         if (lines[1]) {
           ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
           ctx.fillStyle = '#fbbf24'
-          ctx.fillText(truncateLabel(lines[1], 12), node.x, y + 16)
+          ctx.fillText(truncateLabel(lines[1], 34), node.x, y + 16)
         }
       } else if (node.type === 'feedback') {
-        const width = 62
+        const width = getCardWidth(node)
         const height = 22
         const x = node.x - width / 2
         const y = node.y - height / 2
@@ -492,12 +498,12 @@ export const InsightGraph: React.FC = () => {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(truncateLabel(lines[0] || 'Corrections', 11), node.x, y + 8)
+        ctx.fillText(truncateLabel(lines[0] || 'Corrections', 34), node.x, y + 8)
 
         if (lines[1]) {
           ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
           ctx.fillStyle = '#f87171'
-          ctx.fillText(truncateLabel(lines[1], 12), node.x, y + 16)
+          ctx.fillText(truncateLabel(lines[1], 34), node.x, y + 16)
         }
       }
 
@@ -506,36 +512,173 @@ export const InsightGraph: React.FC = () => {
     [selectedNodeId, hoveredNode]
   )
 
-  const paintLineageLink = useCallback(
-    (link: any, ctx: CanvasRenderingContext2D) => {
+  const getNodeBoundaryRadius = (node: any, tab: 'semantic' | 'lineage', ux: number, uy: number) => {
+    if (tab === 'semantic') {
+      return getSemanticNodeRadius(node)
+    }
+    if (node.type === 'user') return 8.5
+    if (node.type === 'model') return node.deployed ? 16 : 13
+    const halfW = getCardWidth(node) / 2
+    const halfH = 11
+    const scaleX = Math.abs(ux) > 1e-4 ? halfW / Math.abs(ux) : 9999
+    const scaleY = Math.abs(uy) > 1e-4 ? halfH / Math.abs(uy) : 9999
+    return Math.min(scaleX, scaleY)
+  }
+
+  const paintLink = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const src = link.source
       const tgt = link.target
       if (!src || !tgt || src.x === undefined || tgt.x === undefined) return
-      const midX = (src.x + tgt.x) / 2
-      const midY = (src.y + tgt.y) / 2
+
+      const dx = tgt.x - src.x
+      const dy = tgt.y - src.y
+      const dist = Math.hypot(dx, dy)
+      if (dist < 1) return
+
+      const ux = dx / dist
+      const uy = dy / dist
+
+      const srcRadius = getNodeBoundaryRadius(src, activeTab, ux, uy)
+      const tgtRadius = getNodeBoundaryRadius(tgt, activeTab, ux, uy)
+
+      const arrowLength = Math.max(5.5, Math.min(8.5, 7 / Math.sqrt(Math.max(0.6, globalScale))))
+      const arrowWidth = arrowLength * 0.55
+
+      const isSemantic = activeTab === 'semantic'
+      const tipGap = isSemantic ? 0.5 : 1.5
+      const tipX = tgt.x - ux * (tgtRadius + tipGap)
+      const tipY = tgt.y - uy * (tgtRadius + tipGap)
+
+      const startX = src.x + ux * (srcRadius + 0.5)
+      const startY = src.y + uy * (srcRadius + 0.5)
+
+      const srcId = typeof src === 'object' ? src.id : src
+      const tgtId = typeof tgt === 'object' ? tgt.id : tgt
+      const isSelectedEdge = selectedNodeId && (srcId === selectedNodeId || tgtId === selectedNodeId)
+      const isDimmed = selectedNodeId && !isSelectedEdge
+
+      let lineColor = '#475569'
+      let lineWidth = 1.2
+
+      if (activeTab === 'semantic') {
+        lineWidth = Math.max(1, Math.min(3.5, (link.weight || 1) * 0.35))
+        if (isSelectedEdge) {
+          lineColor = '#818cf8'
+          lineWidth = Math.max(lineWidth, 2)
+        } else if (isDimmed) {
+          lineColor = 'rgba(75, 85, 99, 0.15)'
+        } else {
+          lineColor = 'rgba(99, 102, 241, 0.35)'
+        }
+      } else {
+        if (isSelectedEdge) {
+          lineColor = '#93c5fd'
+          lineWidth = 2
+        } else if (isDimmed) {
+          lineColor = 'rgba(71, 85, 105, 0.2)'
+        } else {
+          lineColor = '#475569'
+          lineWidth = 1.2
+        }
+      }
 
       ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(src.x, src.y)
-      ctx.lineTo(tgt.x, tgt.y)
-      ctx.strokeStyle = '#475569'
-      ctx.lineWidth = 1.2
-      ctx.stroke()
+      ctx.strokeStyle = lineColor
+      ctx.fillStyle = lineColor
+      ctx.lineWidth = lineWidth
 
-      const text = link.label || ''
-      if (text) {
-        ctx.font = '8px Inter, sans-serif'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        const textWidth = ctx.measureText(text).width
-        ctx.fillStyle = '#151821'
-        ctx.fillRect(midX - textWidth / 2 - 3, midY - 6, textWidth + 6, 12)
-        ctx.fillStyle = '#94a3b8'
-        ctx.fillText(text, midX, midY)
+      if (isSemantic) {
+        const linkId = link.id || `${srcId}-${tgtId}`
+        let hash = 0
+        for (let i = 0; i < String(linkId).length; i++) {
+          hash = ((hash << 5) - hash + String(linkId).charCodeAt(i)) | 0
+        }
+        const bendSign = hash % 2 === 0 ? 1 : -1
+        const offsetFraction = 0.17
+        const perpDx = -uy
+        const perpDy = ux
+        const curveMidX = (startX + tipX) / 2 + perpDx * dist * offsetFraction * bendSign
+        const curveMidY = (startY + tipY) / 2 + perpDy * dist * offsetFraction * bendSign
+
+        ctx.beginPath()
+        ctx.moveTo(startX, startY)
+        ctx.quadraticCurveTo(curveMidX, curveMidY, tipX, tipY)
+        ctx.stroke()
+
+        if (isSelectedEdge) {
+          const curveLabel = link.weight ? `${link.weight} docs` : ''
+          if (curveLabel) {
+            const labelX = 0.25 * startX + 0.5 * curveMidX + 0.25 * tipX
+            const labelY = 0.25 * startY + 0.5 * curveMidY + 0.25 * tipY
+            const fontSize = Math.max(7, Math.min(9.5, 8 / Math.sqrt(Math.max(0.6, globalScale))))
+            ctx.font = `${fontSize}px Inter, sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            const textWidth = ctx.measureText(curveLabel).width
+            ctx.fillStyle = '#0f131c'
+            ctx.fillRect(labelX - textWidth / 2 - 3, labelY - fontSize * 0.75, textWidth + 6, fontSize * 1.5)
+            ctx.fillStyle = '#ffffff'
+            ctx.fillText(curveLabel, labelX, labelY)
+          }
+        }
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(startX, startY)
+        ctx.lineTo(tipX, tipY)
+        ctx.stroke()
+
+        const baseCenterX = tipX - ux * arrowLength
+        const baseCenterY = tipY - uy * arrowLength
+        const perpX = -uy * arrowWidth
+        const perpY = ux * arrowWidth
+
+        ctx.beginPath()
+        ctx.moveTo(tipX, tipY)
+        ctx.lineTo(baseCenterX + perpX, baseCenterY + perpY)
+        ctx.lineTo(baseCenterX - perpX, baseCenterY - perpY)
+        ctx.closePath()
+        ctx.fill()
+
+        const shouldDrawLineageLabel = isSelectedEdge || (globalScale >= 1.15 && !selectedNodeId)
+        const rawLabel = link.label || ''
+        const cleanLabel = rawLabel.replace(/[→←]/g, '').trim()
+
+        if (shouldDrawLineageLabel && cleanLabel && dist > (srcRadius + tgtRadius + arrowLength + 16)) {
+          const midX = (src.x + tgt.x) / 2
+          const midY = (src.y + tgt.y) / 2
+
+          let angle = Math.atan2(dy, dx)
+          const isFlipped = angle > Math.PI / 2 || angle < -Math.PI / 2
+          if (isFlipped) {
+            angle += Math.PI
+          }
+
+          const displayLabel = isFlipped ? `← ${cleanLabel}` : `${cleanLabel} →`
+
+          ctx.save()
+          ctx.translate(midX, midY)
+          ctx.rotate(angle)
+
+          const fontSize = Math.max(7, Math.min(9.5, 8 / Math.sqrt(Math.max(0.6, globalScale))))
+          ctx.font = `${fontSize}px Inter, sans-serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+
+          const textWidth = ctx.measureText(displayLabel).width
+          ctx.fillStyle = '#0f131c'
+          ctx.fillRect(-textWidth / 2 - 3, -fontSize * 0.75, textWidth + 6, fontSize * 1.5)
+
+          ctx.fillStyle = isSelectedEdge ? '#ffffff' : '#94a3b8'
+          ctx.fillText(displayLabel, 0, 0)
+
+          ctx.restore()
+        }
       }
+
       ctx.restore()
     },
-    []
+    [activeTab, selectedNodeId]
   )
 
   const currentGraphData = activeTab === 'semantic' ? filteredSemanticGraph : filteredLineageGraph
@@ -849,8 +992,8 @@ export const InsightGraph: React.FC = () => {
               graphData={memoizedGraphData}
               nodeId="id"
               nodeCanvasObject={activeTab === 'semantic' ? paintSemanticNode : paintLineageNode}
-              linkCanvasObject={activeTab === 'lineage' ? paintLineageLink : undefined}
-              linkCanvasObjectMode={activeTab === 'lineage' ? () => 'after' : undefined}
+              linkCanvasObject={activeTab === 'lineage' ? paintLink : undefined}
+              linkCanvasObjectMode={activeTab === 'lineage' ? () => 'replace' : undefined}
               linkCurvature={activeTab === 'semantic' ? 0.15 : 0}
               linkWidth={(link: any) => {
                 if (activeTab === 'semantic') {

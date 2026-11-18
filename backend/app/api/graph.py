@@ -299,7 +299,7 @@ def get_system_lineage(
                 "source": f"user_{d.owner_id}",
                 "target": f"dataset_{d.id}",
                 "type": "created",
-                "label": "created →"
+                "label": "created"
             })
 
     for m in models:
@@ -338,7 +338,7 @@ def get_system_lineage(
                 "source": f"user_{m.created_by}",
                 "target": f"model_{m.id}",
                 "type": "trained",
-                "label": "trained →"
+                "label": "trained"
             })
 
         if m.dataset_id and m.dataset_id in dataset_map:
@@ -347,7 +347,7 @@ def get_system_lineage(
                 "source": f"dataset_{m.dataset_id}",
                 "target": f"model_{m.id}",
                 "type": "trained_on",
-                "label": "trained on →"
+                "label": "trained on"
             })
 
     pred_nodes_created = []
@@ -368,7 +368,7 @@ def get_system_lineage(
                 "source": f"model_{m.id}",
                 "target": p_node_id,
                 "type": "predicted_with",
-                "label": "predicted with →"
+                "label": "predicted with"
             })
 
         single_preds = [p for p in predictions if p.model_version_id == m.id and p.document_id is None]
@@ -387,7 +387,7 @@ def get_system_lineage(
                 "source": f"model_{m.id}",
                 "target": p_node_id,
                 "type": "predicted_with",
-                "label": "predicted with →"
+                "label": "predicted with"
             })
 
     if not pred_nodes_created and predictions:
@@ -406,7 +406,7 @@ def get_system_lineage(
                 "source": f"model_{models[0].id}",
                 "target": p_node_id,
                 "type": "predicted_with",
-                "label": "predicted with →"
+                "label": "predicted with"
             })
 
     if feedbacks:
@@ -424,7 +424,7 @@ def get_system_lineage(
                 "source": p_id,
                 "target": fb_node_id,
                 "type": "corrected_by",
-                "label": "corrected by →"
+                "label": "corrected by"
             })
         reviewer_ids = {f.reviewer_id for f in feedbacks if f.reviewer_id and f.reviewer_id in user_map}
         if not reviewer_ids:
@@ -435,7 +435,7 @@ def get_system_lineage(
                 "source": f"user_{rid}",
                 "target": fb_node_id,
                 "type": "corrected",
-                "label": "corrected →"
+                "label": "corrected"
             })
 
     node_ids = {n["id"] for n in nodes}
