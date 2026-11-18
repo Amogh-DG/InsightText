@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import ForceGraph2D from 'react-force-graph-2d'
+import { forceCollide, forceX, forceY } from 'd3-force'
 import {
   Search,
   Plus,
@@ -272,6 +273,7 @@ export const InsightGraph: React.FC = () => {
   }, [])
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!hoveredNode) return
     const rect = e.currentTarget.getBoundingClientRect()
     setCursorPos({
       x: e.clientX - rect.left,
@@ -279,27 +281,55 @@ export const InsightGraph: React.FC = () => {
     })
   }
 
+  const truncateLabel = (str: string, maxLen: number = 14) => {
+    if (!str) return ''
+    return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str
+  }
+
+  const getSemanticNodeRadius = (node: any) => {
+    const docCount = node.document_count || 1
+    return Math.max(4, Math.min(13, 3.5 + Math.sqrt(docCount) * 0.75))
+  }
+
+  const getNodeCollisionRadius = (node: any, tab: 'semantic' | 'lineage') => {
+    if (tab === 'semantic') {
+      return getSemanticNodeRadius(node) + 8
+    }
+    if (node.type === 'user') return 8.5 + 8
+    if (node.type === 'model') return 13 + 8
+    if (node.type === 'dataset' || node.type === 'prediction' || node.type === 'feedback') {
+      return 36 + 8
+    }
+    return 12 + 8
+  }
+
+  const topSemanticNodeIds = useMemo(() => {
+    const sorted = [...filteredSemanticGraph.nodes].sort((a, b) => (b.document_count || 0) - (a.document_count || 0))
+    return new Set(sorted.slice(0, 10).map((n) => n.id))
+  }, [filteredSemanticGraph.nodes])
+
   const paintSemanticNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isSelected = selectedNodeId === node.id
       const isNeighbor = selectedNodeId ? selectedNeighborIds.has(node.id) : false
+      const isHovered = hoveredNode?.id === node.id
+      const isLargest = topSemanticNodeIds.has(node.id)
       const isDimmed = selectedNodeId ? !isSelected && !isNeighbor : false
 
       ctx.save()
       ctx.globalAlpha = isDimmed ? 0.15 : 1.0
 
-      const docCount = node.document_count || 1
-      const radius = Math.max(5, Math.min(22, 6 + Math.sqrt(docCount) * 1.3))
+      const radius = getSemanticNodeRadius(node)
 
       let fillColor = '#4f46e5'
       if (node.type === 'category') fillColor = '#10b981'
       if (node.type === 'entity') fillColor = '#f59e0b'
 
-      if (isSelected) {
+      if (isSelected || isHovered) {
         ctx.beginPath()
-        ctx.arc(node.x, node.y, radius + 4, 0, 2 * Math.PI, false)
-        ctx.strokeStyle = '#818cf8'
-        ctx.lineWidth = 2.5
+        ctx.arc(node.x, node.y, radius + 3, 0, 2 * Math.PI, false)
+        ctx.strokeStyle = isSelected ? '#818cf8' : '#cbd5e1'
+        ctx.lineWidth = 2
         ctx.stroke()
       }
 
@@ -308,72 +338,80 @@ export const InsightGraph: React.FC = () => {
       ctx.fillStyle = fillColor
       ctx.fill()
 
-      if (globalScale > 0.7 || isSelected || isNeighbor) {
-        const fontSize = Math.max(10, Math.min(14, 11 / globalScale))
+      const shouldDrawLabel = isSelected || isHovered || isNeighbor || isLargest
+
+      if (shouldDrawLabel) {
+        const baseFontSize = Math.max(7, Math.min(11, 8.5 / Math.sqrt(Math.max(0.5, globalScale))))
+        const fontSize = isSelected || isHovered ? Math.max(9, baseFontSize * 1.1) : baseFontSize
         ctx.font = `${fontSize}px Inter, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
-        ctx.fillStyle = isSelected ? '#ffffff' : '#94a3b8'
-        ctx.fillText(node.label, node.x, node.y + radius + 4)
+        ctx.fillStyle = isSelected || isHovered ? '#ffffff' : '#94a3b8'
+        const displayLabel = truncateLabel(node.label, 14)
+        ctx.fillText(displayLabel, node.x, node.y + radius + 3)
       }
 
       ctx.restore()
     },
-    [selectedNodeId, selectedNeighborIds]
+    [selectedNodeId, selectedNeighborIds, hoveredNode, topSemanticNodeIds]
   )
 
   const paintLineageNode = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D) => {
+    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isSelected = selectedNodeId === node.id
+      const isHovered = hoveredNode?.id === node.id
       ctx.save()
 
       if (node.type === 'user') {
-        const radius = 14
+        const radius = 8.5
         ctx.beginPath()
         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
         ctx.fillStyle = '#4f6bf5'
         ctx.fill()
-        if (isSelected) {
+        if (isSelected || isHovered) {
           ctx.strokeStyle = '#93c5fd'
-          ctx.lineWidth = 2.5
+          ctx.lineWidth = 2
           ctx.stroke()
         }
-        ctx.font = '11px Inter, sans-serif'
+        const fontSize = Math.max(7, Math.min(10, 8 / Math.sqrt(Math.max(0.6, globalScale))))
+        ctx.font = `${fontSize}px Inter, sans-serif`
         ctx.textAlign = 'center'
-        ctx.fillStyle = '#e2e8f0'
-        ctx.fillText(node.label, node.x, node.y + radius + 4)
+        ctx.textBaseline = 'top'
+        ctx.fillStyle = isSelected || isHovered ? '#ffffff' : '#cbd5e1'
+        ctx.fillText(truncateLabel(node.label, 12), node.x, node.y + radius + 3)
       } else if (node.type === 'dataset') {
-        const width = 110
-        const height = 36
+        const width = 68
+        const height = 22
         const x = node.x - width / 2
         const y = node.y - height / 2
         ctx.beginPath()
-        ctx.roundRect(x, y, width, height, 8)
+        ctx.roundRect(x, y, width, height, 5)
         ctx.fillStyle = '#132c22'
         ctx.fill()
-        ctx.strokeStyle = isSelected ? '#6ee7b7' : '#10b981'
-        ctx.lineWidth = isSelected ? 2 : 1.2
+        ctx.strokeStyle = isSelected || isHovered ? '#6ee7b7' : '#10b981'
+        ctx.lineWidth = isSelected || isHovered ? 1.8 : 1
         ctx.stroke()
 
-        ctx.font = 'bold 11px Inter, sans-serif'
+        const fontSize = Math.max(7, Math.min(9, 8 / Math.sqrt(Math.max(0.6, globalScale))))
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`
         ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
-        const labelText = node.label.length > 14 ? node.label.slice(0, 13) + '...' : node.label
-        ctx.fillText(labelText, node.x, y + 13)
+        ctx.fillText(truncateLabel(node.label, 10), node.x, y + 8)
 
-        ctx.font = '10px Inter, sans-serif'
+        ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
         ctx.fillStyle = '#6ee7b7'
-        ctx.fillText(`${(node.row_count || 0).toLocaleString()} rows`, node.x, y + 27)
+        ctx.fillText(`${(node.row_count || 0).toLocaleString()} rows`, node.x, y + 16)
       } else if (node.type === 'model') {
-        const radius = 22
+        const radius = 13
         if (node.deployed) {
           ctx.beginPath()
-          ctx.arc(node.x, node.y, radius + 12, 0, 2 * Math.PI)
+          ctx.arc(node.x, node.y, radius + 7, 0, 2 * Math.PI)
           ctx.fillStyle = 'rgba(99, 102, 241, 0.16)'
           ctx.fill()
 
           ctx.beginPath()
-          ctx.arc(node.x, node.y, radius + 6, 0, 2 * Math.PI)
+          ctx.arc(node.x, node.y, radius + 3.5, 0, 2 * Math.PI)
           ctx.fillStyle = 'rgba(99, 102, 241, 0.28)'
           ctx.fill()
         }
@@ -389,78 +427,83 @@ export const InsightGraph: React.FC = () => {
         ctx.closePath()
         ctx.fillStyle = '#1e244a'
         ctx.fill()
-        ctx.strokeStyle = isSelected ? '#a5b4fc' : '#6366f1'
-        ctx.lineWidth = isSelected ? 2.5 : 1.5
+        ctx.strokeStyle = isSelected || isHovered ? '#a5b4fc' : '#6366f1'
+        ctx.lineWidth = isSelected || isHovered ? 2 : 1.2
         ctx.stroke()
 
-        ctx.font = 'bold 12px Inter, sans-serif'
+        const fontSize = Math.max(7, Math.min(9, 8 / Math.sqrt(Math.max(0.6, globalScale))))
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
         ctx.fillText(node.label, node.x, node.y)
 
-        ctx.font = '11px Inter, sans-serif'
+        ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
         ctx.fillStyle = node.deployed ? '#818cf8' : '#94a3b8'
         ctx.fillText(
-          `${node.name || 'Model'}${node.deployed ? ' · Deployed' : ''}`,
+          truncateLabel(`${node.name || 'Model'}${node.deployed ? ' · Deployed' : ''}`, 14),
           node.x,
-          node.y + radius + 6
+          node.y + radius + 3
         )
       } else if (node.type === 'prediction') {
-        const width = 110
-        const height = 36
+        const width = 68
+        const height = 22
         const x = node.x - width / 2
         const y = node.y - height / 2
         ctx.beginPath()
-        ctx.roundRect(x, y, width, height, 18)
+        ctx.roundRect(x, y, width, height, 11)
         ctx.fillStyle = '#262017'
         ctx.fill()
-        ctx.strokeStyle = isSelected ? '#fde68a' : '#f59e0b'
-        ctx.lineWidth = isSelected ? 2 : 1.2
+        ctx.strokeStyle = isSelected || isHovered ? '#fde68a' : '#f59e0b'
+        ctx.lineWidth = isSelected || isHovered ? 1.8 : 1
         ctx.stroke()
 
         const lines = node.label.split('\n')
-        ctx.font = 'bold 10px Inter, sans-serif'
+        const fontSize = Math.max(6.5, Math.min(8.5, 7.5 / Math.sqrt(Math.max(0.6, globalScale))))
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`
         ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(lines[0] || '', node.x, y + 13)
+        ctx.fillText(truncateLabel(lines[0] || '', 10), node.x, y + 8)
 
         if (lines[1]) {
-          ctx.font = '10px Inter, sans-serif'
+          ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
           ctx.fillStyle = '#fbbf24'
-          ctx.fillText(lines[1], node.x, y + 26)
+          ctx.fillText(truncateLabel(lines[1], 12), node.x, y + 16)
         }
       } else if (node.type === 'feedback') {
-        const width = 100
-        const height = 36
+        const width = 62
+        const height = 22
         const x = node.x - width / 2
         const y = node.y - height / 2
         ctx.beginPath()
-        ctx.roundRect(x, y, width, height, 6)
+        ctx.roundRect(x, y, width, height, 4)
         ctx.fillStyle = '#2d181c'
         ctx.fill()
-        ctx.strokeStyle = isSelected ? '#fca5a5' : '#ef4444'
-        ctx.lineWidth = isSelected ? 2 : 1.2
+        ctx.strokeStyle = isSelected || isHovered ? '#fca5a5' : '#ef4444'
+        ctx.lineWidth = isSelected || isHovered ? 1.8 : 1
         ctx.stroke()
 
         const lines = node.label.split('\n')
-        ctx.font = 'bold 10px Inter, sans-serif'
+        const fontSize = Math.max(6.5, Math.min(8.5, 7.5 / Math.sqrt(Math.max(0.6, globalScale))))
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`
         ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(lines[0] || 'Corrections', node.x, y + 13)
+        ctx.fillText(truncateLabel(lines[0] || 'Corrections', 11), node.x, y + 8)
 
         if (lines[1]) {
-          ctx.font = '10px Inter, sans-serif'
+          ctx.font = `${Math.max(6, fontSize - 1)}px Inter, sans-serif`
           ctx.fillStyle = '#f87171'
-          ctx.fillText(lines[1], node.x, y + 26)
+          ctx.fillText(truncateLabel(lines[1], 12), node.x, y + 16)
         }
       }
 
       ctx.restore()
     },
-    [selectedNodeId]
+    [selectedNodeId, hoveredNode]
   )
 
   const paintLineageLink = useCallback(
@@ -472,18 +515,24 @@ export const InsightGraph: React.FC = () => {
       const midY = (src.y + tgt.y) / 2
 
       ctx.save()
-      ctx.font = '9px Inter, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
+      ctx.beginPath()
+      ctx.moveTo(src.x, src.y)
+      ctx.lineTo(tgt.x, tgt.y)
+      ctx.strokeStyle = '#475569'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
 
       const text = link.label || ''
-      const textWidth = ctx.measureText(text).width
-
-      ctx.fillStyle = '#151821'
-      ctx.fillRect(midX - textWidth / 2 - 4, midY - 7, textWidth + 8, 14)
-
-      ctx.fillStyle = '#94a3b8'
-      ctx.fillText(text, midX, midY)
+      if (text) {
+        ctx.font = '8px Inter, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        const textWidth = ctx.measureText(text).width
+        ctx.fillStyle = '#151821'
+        ctx.fillRect(midX - textWidth / 2 - 3, midY - 6, textWidth + 6, 12)
+        ctx.fillStyle = '#94a3b8'
+        ctx.fillText(text, midX, midY)
+      }
       ctx.restore()
     },
     []
@@ -493,6 +542,49 @@ export const InsightGraph: React.FC = () => {
   const isCurrentEmpty = currentGraphData.nodes.length === 0
   const isCurrentLoading = activeTab === 'semantic' ? isSemanticLoading : isLineageLoading
   const isCurrentError = activeTab === 'semantic' ? isSemanticError : isLineageError
+
+  const memoizedGraphData = useMemo(() => ({
+    nodes: currentGraphData.nodes,
+    links: currentGraphData.edges
+  }), [currentGraphData.nodes, currentGraphData.edges])
+
+  const hasInitialZoomFit = useRef(false)
+
+  const handleEngineStop = useCallback(() => {
+    if (!hasInitialZoomFit.current && fgRef.current) {
+      hasInitialZoomFit.current = true
+      fgRef.current.zoomToFit(400, 50)
+    }
+  }, [])
+
+  useEffect(() => {
+    hasInitialZoomFit.current = false
+  }, [activeTab, selectedDatasetId])
+
+  useEffect(() => {
+    if (!fgRef.current) return
+
+    const charge = fgRef.current.d3Force('charge')
+    if (charge) {
+      charge.strength(-400).distanceMax(300)
+    }
+
+    const link = fgRef.current.d3Force('link')
+    if (link) {
+      link.distance(120).strength(0.2)
+    }
+
+    fgRef.current.d3Force(
+      'collide',
+      forceCollide((node: any) => getNodeCollisionRadius(node, activeTab))
+    )
+    fgRef.current.d3Force('x', forceX(0).strength(0.05))
+    fgRef.current.d3Force('y', forceY(0).strength(0.05))
+
+    if (!isPhysicsPaused) {
+      fgRef.current.d3ReheatSimulation()
+    }
+  }, [activeTab, memoizedGraphData, isPhysicsPaused])
 
   return (
     <div className="flex flex-col gap-4 h-full max-w-[1600px] mx-auto pb-4">
@@ -754,7 +846,7 @@ export const InsightGraph: React.FC = () => {
               ref={fgRef}
               width={dimensions.width}
               height={dimensions.height}
-              graphData={{ nodes: currentGraphData.nodes, links: currentGraphData.edges }}
+              graphData={memoizedGraphData}
               nodeId="id"
               nodeCanvasObject={activeTab === 'semantic' ? paintSemanticNode : paintLineageNode}
               linkCanvasObject={activeTab === 'lineage' ? paintLineageLink : undefined}
@@ -762,9 +854,9 @@ export const InsightGraph: React.FC = () => {
               linkCurvature={activeTab === 'semantic' ? 0.15 : 0}
               linkWidth={(link: any) => {
                 if (activeTab === 'semantic') {
-                  return Math.max(1, Math.min(5, (link.weight || 1) * 0.5))
+                  return Math.max(1, Math.min(4, (link.weight || 1) * 0.4))
                 }
-                return 1.5
+                return 1.2
               }}
               linkColor={(link: any) => {
                 if (activeTab === 'semantic') {
@@ -779,7 +871,10 @@ export const InsightGraph: React.FC = () => {
               }}
               onNodeClick={handleNodeClick}
               onNodeHover={(node) => setHoveredNode(node || null)}
-              cooldownTicks={isPhysicsPaused ? 0 : 80}
+              onEngineStop={handleEngineStop}
+              d3AlphaDecay={0.035}
+              d3VelocityDecay={0.4}
+              cooldownTicks={isPhysicsPaused ? 0 : 120}
               enableNodeDrag={!isPhysicsPaused}
             />
           )}

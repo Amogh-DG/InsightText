@@ -55,6 +55,14 @@ def test_lineage_graph_admin(client, admin_headers):
         assert "status" in mn
         assert "deployed" in mn
         assert "created_by" in mn
+    node_ids = {n["id"] for n in data["nodes"]}
+    for edge in data["edges"]:
+        assert edge["source"] in node_ids
+        assert edge["target"] in node_ids
+        assert edge["label"].endswith("→")
+    edge_types = {e["type"] for e in data["edges"]}
+    assert "trained" in edge_types
+    assert "corrected" in edge_types
 
 def test_graph_endpoints_forbidden_for_other_roles(
     client,

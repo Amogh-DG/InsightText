@@ -299,7 +299,7 @@ def get_system_lineage(
                 "source": f"user_{d.owner_id}",
                 "target": f"dataset_{d.id}",
                 "type": "created",
-                "label": "create →"
+                "label": "created →"
             })
 
     for m in models:
@@ -332,13 +332,22 @@ def get_system_lineage(
             "created_at": m.created_at.isoformat() if m.created_at else None
         })
 
+        if m.created_by and m.created_by in user_map:
+            edges.append({
+                "id": f"user_{m.created_by}-model_{m.id}",
+                "source": f"user_{m.created_by}",
+                "target": f"model_{m.id}",
+                "type": "trained",
+                "label": "trained →"
+            })
+
         if m.dataset_id and m.dataset_id in dataset_map:
             edges.append({
                 "id": f"dataset_{m.dataset_id}-model_{m.id}",
                 "source": f"dataset_{m.dataset_id}",
                 "target": f"model_{m.id}",
                 "type": "trained_on",
-                "label": "← trained on"
+                "label": "trained on →"
             })
 
     pred_nodes_created = []
@@ -378,7 +387,7 @@ def get_system_lineage(
                 "source": f"model_{m.id}",
                 "target": p_node_id,
                 "type": "predicted_with",
-                "label": "← predicted with"
+                "label": "predicted with →"
             })
 
     if not pred_nodes_created and predictions:
@@ -417,8 +426,25 @@ def get_system_lineage(
                 "type": "corrected_by",
                 "label": "corrected by →"
             })
+        reviewer_ids = {f.reviewer_id for f in feedbacks if f.reviewer_id and f.reviewer_id in user_map}
+        if not reviewer_ids:
+            reviewer_ids = {u.id for u in users if u.role == "reviewer"}
+        for rid in sorted(reviewer_ids):
+            edges.append({
+                "id": f"user_{rid}-{fb_node_id}",
+                "source": f"user_{rid}",
+                "target": fb_node_id,
+                "type": "corrected",
+                "label": "corrected →"
+            })
+
+    node_ids = {n["id"] for n in nodes}
+    valid_edges = [
+        e for e in edges
+        if e["source"] in node_ids and e["target"] in node_ids
+    ]
 
     return {
         "nodes": nodes,
-        "edges": edges
+        "edges": valid_edges
     }
