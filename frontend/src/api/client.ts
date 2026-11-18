@@ -222,5 +222,15 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(body)
       })
+  },
+  graph: {
+    semantic: (datasetId?: string) =>
+      request<{ nodes: any[]; edges: any[] }>(`/graph/semantic${datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : ''}`),
+    nodeDocuments: (nodeId: string, page = 1, pageSize = 10, datasetId?: string) =>
+      request<{ total: number; page: number; page_size: number; documents: any[] }>(
+        `/graph/semantic/node/${encodeURIComponent(nodeId)}/documents?page=${page}&page_size=${pageSize}${datasetId ? `&dataset_id=${encodeURIComponent(datasetId)}` : ''}`
+      ),
+    lineage: () =>
+      request<{ nodes: any[]; edges: any[] }>('/graph/lineage')
   }
 }

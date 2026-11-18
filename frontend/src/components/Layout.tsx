@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LogOut } from 'lucide-react'
+import { LogOut, Network } from 'lucide-react'
 
 export const Layout: React.FC = () => {
   const { user, logout } = useAuth()
@@ -17,12 +17,12 @@ export const Layout: React.FC = () => {
     { label: 'Models', path: '/models', roles: ['analyst', 'data_scientist', 'manager', 'reviewer', 'admin'] },
     { label: 'Predict', path: '/predict', roles: ['analyst', 'data_scientist', 'manager', 'admin'] },
     { label: 'Review', path: '/review', roles: ['reviewer', 'analyst', 'data_scientist', 'admin'] },
-    { label: 'Reports', path: '/reports', roles: ['analyst', 'data_scientist', 'manager', 'reviewer', 'admin'] },
-    { label: 'Admin', path: '/admin/users', roles: ['admin'] }
+    { label: 'Reports', path: '/reports', roles: ['analyst', 'data_scientist', 'manager', 'reviewer', 'admin'] }
   ]
 
   const getPageTitle = () => {
     const p = location.pathname
+    if (p.startsWith('/graph') || p.startsWith('/admin/graph')) return 'Insight Graph'
     if (p.startsWith('/dashboard')) return 'Dashboard'
     if (p === '/datasets/upload') return 'Upload data'
     if (p.startsWith('/datasets')) return 'Datasets'
@@ -82,6 +82,40 @@ export const Layout: React.FC = () => {
                 </NavLink>
               )
             })}
+
+            {user?.role === 'admin' && (
+              <div className="mt-5 pt-3 border-t border-[#1f232e] flex flex-col gap-1">
+                <div className="px-4 py-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                  ADMIN
+                </div>
+                <NavLink
+                  to="/admin/users"
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    location.pathname.startsWith('/admin')
+                      ? 'bg-[#1e2338] text-[#818cf8] border border-[#2e3760]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#1a1e28]'
+                  }`}
+                >
+                  Admin
+                </NavLink>
+                <NavLink
+                  to="/graph"
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-between ${
+                    location.pathname.startsWith('/graph')
+                      ? 'bg-[#1e2338] text-[#818cf8] border border-[#2e3760]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#1a1e28]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Network size={16} className="text-[#818cf8]" />
+                    <span>Insight Graph</span>
+                  </div>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#252d4a] text-[#818cf8] border border-[#374271]">
+                    Admin
+                  </span>
+                </NavLink>
+              </div>
+            )}
           </nav>
         </div>
 
