@@ -23,6 +23,7 @@ InsightText processes unstructured text such as support tickets, customer review
 - Trend Forecasting: Predict volume and sentiment trends using lag-feature XGBoost regression.
 - Reviewer Feedback: Review low-confidence predictions, correct labels, and feed corrections into retraining.
 - Dashboard & Reports: Monitor KPIs, view distributions, and export data as CSV or HTML reports.
+- Insight Graph: Admin interactive force-directed graph visualizing semantic networks and system lineage.
 - Role-Based Access: Dedicated views and permissions for Analyst, Data Scientist, Manager, Reviewer, and Admin.
 
 ## Architecture
@@ -45,7 +46,7 @@ Clients / Users -> Caddy Proxy (TLS 1.3) -> React Frontend / FastAPI Backend -> 
 | NLP | spaCy & DistilBERT | Tokenization, NER, and sentiment analysis |
 | Embeddings | all-MiniLM-L6-v2 | Sentence-transformer dense vectors |
 | ML | Scikit-Learn & XGBoost | Classifiers and trend forecasting regressor |
-| Frontend | React 18 & TypeScript | Vite build, Tailwind CSS, Recharts |
+| Frontend | React 18 & TypeScript | Vite build, Tailwind CSS, Recharts, React Force Graph 2D |
 | Security | Cryptography & PyJWT | AES-256-GCM encryption, JWT, and bcrypt |
 | Deployment | Docker Compose & Caddy | Containerized services with TLS 1.3 |
 

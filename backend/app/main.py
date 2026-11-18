@@ -27,6 +27,7 @@ from app.api import (
     predict,
     feedback,
     reports,
+    graph,
     settings as system_settings
 )
 
@@ -79,4 +80,5 @@ app.include_router(classify.router, prefix=settings.API_V1_STR)
 app.include_router(predict.router, prefix=settings.API_V1_STR)
 app.include_router(feedback.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
+app.include_router(graph.router, prefix=settings.API_V1_STR)
 app.include_router(system_settings.router, prefix=settings.API_V1_STR)

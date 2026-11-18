@@ -17,6 +17,7 @@ import { ReviewFeedback } from './pages/ReviewFeedback'
 import { Reports } from './pages/Reports'
 import { AdminUsers } from './pages/AdminUsers'
 import { AdminModels } from './pages/AdminModels'
+import { InsightGraph } from './pages/InsightGraph'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +67,8 @@ export function App() {
                   <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
                   <Route path="/admin/users" element={<AdminUsers />} />
                   <Route path="/admin/models" element={<AdminModels />} />
+                  <Route path="/graph" element={<InsightGraph />} />
+                  <Route path="/admin/graph" element={<InsightGraph />} />
                 </Route>
 
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
